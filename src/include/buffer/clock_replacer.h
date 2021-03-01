@@ -15,7 +15,7 @@
 #include <list>
 #include <mutex>  // NOLINT
 #include <vector>
-
+#include <unordered_map>
 #include "buffer/replacer.h"
 #include "common/config.h"
 
@@ -37,6 +37,7 @@ class ClockReplacer : public Replacer {
    */
   ~ClockReplacer() override;
 
+  
   bool Victim(frame_id_t *frame_id) override;
 
   void Pin(frame_id_t frame_id) override;
@@ -47,6 +48,22 @@ class ClockReplacer : public Replacer {
 
  private:
   // TODO(student): implement me!
+  // std::unordered_map
+  struct unit_frame{
+    bool ref;
+    bool pin;
+    frame_id_t frame_id;
+    unit_frame(frame_id_t a, bool b, bool c){
+      this->ref = b;
+      this->pin = c;
+      this->frame_id =a;
+    }
+  };
+
+  // std::unordered_map<frame_id_t,unit_frame *> mapper;
+  std::vector<unit_frame *> clock_array;
+  size_t num_pages;
+  size_t clock_hand;
 };
 
 }  // namespace bustub
