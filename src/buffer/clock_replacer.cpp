@@ -37,20 +37,20 @@ bool ClockReplacer::Victim(frame_id_t *frame_id) {
         }
         index = (count + clock_hand) % num_pages;
         unit_frame * unit = clock_array.at(index);
-        LOG_INFO("Old: unit frame id %d, status PIN/REF : %d/%d", unit->frame_id, unit->pin, unit->ref);
+        // LOG_INFO("Old: unit frame id %d, status PIN/REF : %d/%d", unit->frame_id, unit->pin, unit->ref);
         pin = unit->pin and pin;
         if(unit->pin){
             // if the frame is used, skip to next frame
             pin = pin and unit->pin;
             count += 1;
-            LOG_DEBUG("New 1: unit frame id %d, status PIN/REF : %d/%d", unit->frame_id, unit->pin, unit->ref);
+            // LOG_DEBUG("New 1: unit frame id %d, status PIN/REF : %d/%d", unit->frame_id, unit->pin, unit->ref);
         }
         else if(unit->ref){
             // if the frame is not used now, but used recently
             // set ref to false and skip to next frame
             unit->ref = false;
             count += 1;
-            LOG_DEBUG("New 2: unit frame id %d, status PIN/REF : %d/%d", unit->frame_id, unit->pin, unit->ref);
+            // LOG_DEBUG("New 2: unit frame id %d, status PIN/REF : %d/%d", unit->frame_id, unit->pin, unit->ref);
         }
         else{
             // if the frame is not used now and not used recently

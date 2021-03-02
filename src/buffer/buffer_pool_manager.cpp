@@ -14,14 +14,14 @@
 
 #include <list>
 #include <unordered_map>
-
+#include "common/logger.h"
 namespace bustub {
 
 BufferPoolManager::BufferPoolManager(size_t pool_size, DiskManager *disk_manager, LogManager *log_manager)
     : pool_size_(pool_size), disk_manager_(disk_manager), log_manager_(log_manager) {
   // We allocate a consecutive memory space for the buffer pool.
   pages_ = new Page[pool_size_];
-  replacer_ = new LRUReplacer(pool_size);
+  replacer_ = new ClockReplacer(pool_size);
 
   // Initially, every page is in the free list.
   for (size_t i = 0; i < pool_size_; ++i) {
@@ -49,6 +49,7 @@ Page *BufferPoolManager::FetchPageImpl(page_id_t page_id) {
     // P exists
     frame_id = page_table_.at(page_id);
     replacer_->Pin(frame_id);
+    pages[frame_id].pin_count_ ++;
     return pages+frame_id;
   }
   else if (!free_list_.empty()){
@@ -60,6 +61,7 @@ Page *BufferPoolManager::FetchPageImpl(page_id_t page_id) {
       page_table_.insert({page_id, frame_id});
       //Readpage from disk to memory of database
       disk_manager_->ReadPage(page_id, pages[frame_id].GetData()); 
+      pages[frame_id].pin_count_ ++;
       return pages + frame_id; 
   }
   else if (replacer_->Victim(&frame_id)){
@@ -77,6 +79,7 @@ Page *BufferPoolManager::FetchPageImpl(page_id_t page_id) {
     // update page table
     page_table_.insert({page_id, frame_id});
     disk_manager_->ReadPage(page_id, pages[frame_id].GetData());
+    pages[frame_id].pin_count_ = 1;
     return pages + frame_id;
   }
   else{
@@ -99,20 +102,20 @@ bool BufferPoolManager::UnpinPageImpl(page_id_t page_id, bool is_dirty) {
     } else {
       p->is_dirty_ = p->IsDirty() or is_dirty;
       p->pin_count_ = p->pin_count_ - 1;
-
-      if (p->GetPinCount() != 0){
+      if (p->GetPinCount() == 0){
+        LOG_INFO("IMPORTANT UNPIN: frame_id :{%d}",frame_id);
         replacer_->Unpin(frame_id);
-      } 
+      }
+      return true;
     }
 
   }
-  return false; 
 }
 
 bool BufferPoolManager::FlushPageImpl(page_id_t page_id) {
   // Make sure you call DiskManager::WritePage!
   auto got = page_table_.find(page_id);
-  if ( got == page_table_.end()){
+  if (got == page_table_.end()){
     return true;
   } else {
     frame_id_t frame_id = page_table_.at(page_id);
@@ -138,6 +141,7 @@ Page *BufferPoolManager::NewPageImpl(page_id_t *page_id) {
   if (!free_list_.empty()){
     frame_id = free_list_.front();
     free_list_.pop_front();
+    // LOG_INFO("NEW PAGE frame_id : %d", frame_id);
   }
   else if (replacer_->Victim(&frame_id)){
     Page * replaced_page = pages + frame_id;
@@ -147,12 +151,14 @@ Page *BufferPoolManager::NewPageImpl(page_id_t *page_id) {
     }
     page_table_.erase(replaced_page_id);
   } else {
+    LOG_INFO("NewPage Victim Result: %d", replacer_->Victim(&frame_id));
     return nullptr;
   }
 
   page_id_t pid = disk_manager_->AllocatePage();
   // set value
   *page_id = pid;
+  pages[frame_id].pin_count_ ++;
   //update buffer bool
   page_table_.insert({pid,frame_id});
   disk_manager_->ReadPage(pid, pages[frame_id].GetData());
@@ -202,4 +208,9 @@ void BufferPoolManager::FlushAllPagesImpl() {
   }
 }
 
+//DEBUG
+void BufferPoolManager::show(){
+}
 }  // namespace bustub
+
+
