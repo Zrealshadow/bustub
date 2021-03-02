@@ -42,10 +42,52 @@ Page *BufferPoolManager::FetchPageImpl(page_id_t page_id) {
   // 2.     If R is dirty, write it back to the disk.
   // 3.     Delete R from the page table and insert P.
   // 4.     Update P's metadata, read in the page content from disk, and then return a pointer to P.
-  return nullptr;
+  auto got = page_table_.find(page_id);
+  Page * pages = GetPages();
+  frame_id_t frame_id;
+  if (got != page_table_.end()){
+    // P exists
+    frame_id = page_table_.at(page_id);
+    replacer_->Pin(frame_id);
+    return pages+frame_id;
+  }
+  else if (!free_list_.empty()){
+      //free_list is not empty, fetch one frame from freeList
+      // I choose to get the first frame
+      frame_id = free_list_.front();
+      free_list_.pop_front();
+      // load in page_table
+      page_table_.insert(page_id, frame_id);
+      //Readpage from disk to memory of database
+      disk_manager_->ReadPage(page_id, pages[frame_id].GetData()); 
+      return pages + frame_id; 
+  }
+  else if (replacer_->Victim(&frame_id)){
+    // no free frame, replace one frame from buffer
+    // if it is possible to replace frame, frame_id is updated.
+    Page * replaced_page = pages + frame_id;
+    page_id_t replaced_page_id = replaced_page->GetPageId();
+    if(replaced_page->IsDirty()){
+      // if the data is dirty, we should write it to disk and keep data in sync
+      disk_manager_->WritePage(replaced_page_id, replaced_page->GetData());
+    }
+    // if the data is sync in disk and memory
+    // there is no need to write it to disk.
+    page_table_.erase(replaced_page_id);
+    // update page table
+    page_table_.insert(page_id, frame_id);
+    disk_manager_->ReadPage(page_id, pages[frame_id].GetData());
+    return pages + frame_id;
+  }
+  else{
+    // no replaced page.
+    return nullptr;
+  }
 }
 
-bool BufferPoolManager::UnpinPageImpl(page_id_t page_id, bool is_dirty) { return false; }
+bool BufferPoolManager::UnpinPageImpl(page_id_t page_id, bool is_dirty) { 
+  return false; 
+}
 
 bool BufferPoolManager::FlushPageImpl(page_id_t page_id) {
   // Make sure you call DiskManager::WritePage!
@@ -58,7 +100,30 @@ Page *BufferPoolManager::NewPageImpl(page_id_t *page_id) {
   // 2.   Pick a victim page P from either the free list or the replacer. Always pick from the free list first.
   // 3.   Update P's metadata, zero out memory and add P to the page table.
   // 4.   Set the page ID output parameter. Return a pointer to P.
-  return nullptr;
+  frame_id_t frame_id;
+  Page* pages = GetPages();
+  if (!free_list_.empty()){
+    frame_id = free_list_.front();
+    free_list_.pop_front();
+  }
+  else if (replacer_->Victim(&frame_id)){
+    Page * replaced_page = pages + frame_id;
+    page_id_t replaced_page_id = replaced_page->GetPageId();
+    if (replaced_page->IsDirty()){
+      disk_manager_->WritePage(replaced_page_id, replaced_page->GetData());
+    }
+    page_table_.erase(replaced_page_id);
+  } else {
+    return nullptr;
+  }
+
+  page_id_t pid = disk_manager_->AllocatePage();
+  // set value
+  *page_id = pid;
+  //update buffer bool
+  page_table_.insert(pid,frame_id);
+  disk_manager_->ReadPage(pid, pages[frame_id].GetData());
+  return pages + frame_id;
 }
 
 bool BufferPoolManager::DeletePageImpl(page_id_t page_id) {
