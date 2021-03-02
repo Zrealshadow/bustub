@@ -57,7 +57,7 @@ Page *BufferPoolManager::FetchPageImpl(page_id_t page_id) {
       frame_id = free_list_.front();
       free_list_.pop_front();
       // load in page_table
-      page_table_.insert(page_id, frame_id);
+      page_table_.insert({page_id, frame_id});
       //Readpage from disk to memory of database
       disk_manager_->ReadPage(page_id, pages[frame_id].GetData()); 
       return pages + frame_id; 
@@ -75,7 +75,7 @@ Page *BufferPoolManager::FetchPageImpl(page_id_t page_id) {
     // there is no need to write it to disk.
     page_table_.erase(replaced_page_id);
     // update page table
-    page_table_.insert(page_id, frame_id);
+    page_table_.insert({page_id, frame_id});
     disk_manager_->ReadPage(page_id, pages[frame_id].GetData());
     return pages + frame_id;
   }
@@ -86,12 +86,45 @@ Page *BufferPoolManager::FetchPageImpl(page_id_t page_id) {
 }
 
 bool BufferPoolManager::UnpinPageImpl(page_id_t page_id, bool is_dirty) { 
+  auto got = page_table_.find(page_id);
+  if (got == page_table_.end()){
+    return false;
+  } else {
+    frame_id_t frame_id = page_table_.at(page_id);
+    Page *p = pages_ + frame_id;
+
+    if (p->GetPinCount() == 0){
+      // 
+      return false;
+    } else {
+      p->is_dirty_ = p->IsDirty() or is_dirty;
+      p->pin_count_ = p->pin_count_ - 1;
+
+      if (p->GetPinCount() != 0){
+        replacer_->Unpin(frame_id);
+      } 
+    }
+
+  }
   return false; 
 }
 
 bool BufferPoolManager::FlushPageImpl(page_id_t page_id) {
   // Make sure you call DiskManager::WritePage!
-  return false;
+  auto got = page_table_.find(page_id);
+  if ( got == page_table_.end()){
+    return true;
+  } else {
+    frame_id_t frame_id = page_table_.at(page_id);
+    Page * p = pages_ + frame_id;
+    if (p->GetPinCount() != 0){
+      // the page is being using
+      return false;
+    } else if (p->IsDirty()){
+      disk_manager_->WritePage(page_id, p->GetData());
+    }
+    return true;
+  }
 }
 
 Page *BufferPoolManager::NewPageImpl(page_id_t *page_id) {
@@ -121,7 +154,7 @@ Page *BufferPoolManager::NewPageImpl(page_id_t *page_id) {
   // set value
   *page_id = pid;
   //update buffer bool
-  page_table_.insert(pid,frame_id);
+  page_table_.insert({pid,frame_id});
   disk_manager_->ReadPage(pid, pages[frame_id].GetData());
   return pages + frame_id;
 }
@@ -132,11 +165,41 @@ bool BufferPoolManager::DeletePageImpl(page_id_t page_id) {
   // 1.   If P does not exist, return true.
   // 2.   If P exists, but has a non-zero pin-count, return false. Someone is using the page.
   // 3.   Otherwise, P can be deleted. Remove P from the page table, reset its metadata and return it to the free list.
-  return false;
+  auto got = page_table_.find(page_id);
+  if (got == page_table_.end()){
+    // page dose not exist in memory
+    disk_manager_->DeallocatePage(page_id);
+    return true;
+  } else {
+    Page * pages = GetPages();
+    frame_id_t frame_id = page_table_.at(page_id);
+    Page * delete_page = pages + frame_id;
+    if (delete_page->GetPinCount() != 0){
+      // someone is using this page, can not be deleted
+      return false;
+    } else {
+      disk_manager_->DeallocatePage(page_id);
+      //delete the page in memory
+      page_table_.erase(page_id);
+      delete_page->ResetMemory();
+      // add free page into free list
+      free_list_.push_back(frame_id);
+      return true;
+    }
+  }
 }
 
 void BufferPoolManager::FlushAllPagesImpl() {
   // You can do it!
+  auto it = page_table_.begin();
+  for(;it != page_table_.end(); it++){
+    page_id_t page_id = (*it).first;
+    frame_id_t frame_id = (*it).second;
+    Page *p = pages_ + frame_id;
+    if (p->GetPinCount() == 0 and p->IsDirty()){
+      disk_manager_->WritePage(page_id, p->GetData());
+    }
+  }
 }
 
 }  // namespace bustub
