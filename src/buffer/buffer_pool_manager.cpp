@@ -45,9 +45,10 @@ Page *BufferPoolManager::FetchPageImpl(page_id_t page_id) {
   auto got = page_table_.find(page_id);
   Page * pages = GetPages();
   frame_id_t frame_id;
+  
   if (got != page_table_.end()){
     // P exists
-    frame_id = page_table_.at(page_id);
+    frame_id = page_table_.at(page_id); 
     replacer_->Pin(frame_id);
     pages[frame_id].pin_count_ ++;
     return pages+frame_id;
@@ -72,17 +73,21 @@ Page *BufferPoolManager::FetchPageImpl(page_id_t page_id) {
     if(replaced_page->IsDirty()){
       // if the data is dirty, we should write it to disk and keep data in sync
       disk_manager_->WritePage(replaced_page_id, replaced_page->GetData());
+      replaced_page->is_dirty_ = false;
     }
     // if the data is sync in disk and memory
     // there is no need to write it to disk.
     page_table_.erase(replaced_page_id);
     // update page table
     page_table_.insert({page_id, frame_id});
+    pages[frame_id].pin_count_ += 1;
+    pages[frame_id].page_id_ = page_id;
+    pages[frame_id].ResetMemory();
     disk_manager_->ReadPage(page_id, pages[frame_id].GetData());
-    pages[frame_id].pin_count_ = 1;
     return pages + frame_id;
   }
   else{
+    LOG_INFO("Fetch No replcaed Page");
     // no replaced page.
     return nullptr;
   }
@@ -90,6 +95,7 @@ Page *BufferPoolManager::FetchPageImpl(page_id_t page_id) {
 
 bool BufferPoolManager::UnpinPageImpl(page_id_t page_id, bool is_dirty) { 
   auto got = page_table_.find(page_id);
+  // LOG_INFO("UNPIN PAGE : %d", page_id);
   if (got == page_table_.end()){
     return false;
   } else {
@@ -103,7 +109,7 @@ bool BufferPoolManager::UnpinPageImpl(page_id_t page_id, bool is_dirty) {
       p->is_dirty_ = p->IsDirty() or is_dirty;
       p->pin_count_ = p->pin_count_ - 1;
       if (p->GetPinCount() == 0){
-        LOG_INFO("IMPORTANT UNPIN: frame_id :{%d}",frame_id);
+        // LOG_INFO("IMPORTANT UNPIN: frame_id :{%d}",frame_id);
         replacer_->Unpin(frame_id);
       }
       return true;
@@ -125,6 +131,7 @@ bool BufferPoolManager::FlushPageImpl(page_id_t page_id) {
       return false;
     } else if (p->IsDirty()){
       disk_manager_->WritePage(page_id, p->GetData());
+      p->is_dirty_ = false;
     }
     return true;
   }
@@ -146,22 +153,28 @@ Page *BufferPoolManager::NewPageImpl(page_id_t *page_id) {
   else if (replacer_->Victim(&frame_id)){
     Page * replaced_page = pages + frame_id;
     page_id_t replaced_page_id = replaced_page->GetPageId();
+    // LOG_INFO("Replaced framed_id : %d",frame_id);
     if (replaced_page->IsDirty()){
       disk_manager_->WritePage(replaced_page_id, replaced_page->GetData());
+      replaced_page->is_dirty_ = false;
     }
     page_table_.erase(replaced_page_id);
   } else {
-    LOG_INFO("NewPage Victim Result: %d", replacer_->Victim(&frame_id));
+    // LOG_INFO("NewPage Victim Result: %d", replacer_->Victim(&frame_id));
     return nullptr;
   }
 
   page_id_t pid = disk_manager_->AllocatePage();
   // set value
   *page_id = pid;
-  pages[frame_id].pin_count_ ++;
+  //essential step; set value for frame/page
+  pages[frame_id].pin_count_ = 1;
+  pages[frame_id].is_dirty_ = true;
+  pages[frame_id].page_id_ = pid;
+  replacer_->Pin(frame_id);
+  pages[frame_id].ResetMemory();
   //update buffer bool
   page_table_.insert({pid,frame_id});
-  disk_manager_->ReadPage(pid, pages[frame_id].GetData());
   return pages + frame_id;
 }
 
@@ -204,13 +217,12 @@ void BufferPoolManager::FlushAllPagesImpl() {
     Page *p = pages_ + frame_id;
     if (p->GetPinCount() == 0 and p->IsDirty()){
       disk_manager_->WritePage(page_id, p->GetData());
+      p->is_dirty_ = false;
     }
   }
 }
 
-//DEBUG
-void BufferPoolManager::show(){
-}
+
 }  // namespace bustub
 
 

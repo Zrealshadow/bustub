@@ -51,7 +51,6 @@ TEST(BufferPoolManagerTest, BinaryDataTest) {
   std::memcpy(page0->GetData(), random_binary_data, PAGE_SIZE);
   EXPECT_EQ(0, std::memcmp(page0->GetData(), random_binary_data, PAGE_SIZE));
   // Scenario: We should be able to create new pages until we fill up the buffer pool.
-  LOG_INFO("FLAG 1");
   for (size_t i = 1; i < buffer_pool_size; ++i) {
     EXPECT_NE(nullptr, bpm->NewPage(&page_id_temp));
     // LOG_INFO("Page_id_temp : {%d}", page_id_temp);
@@ -64,7 +63,6 @@ TEST(BufferPoolManagerTest, BinaryDataTest) {
 
   // Scenario: After unpinning pages {0, 1, 2, 3, 4} and pinning another 4 new pages,
   // there would still be one cache frame left for reading page 0.
-  LOG_INFO("FLAG 2");
   for (int i = 0; i < 5; ++i) {
     EXPECT_EQ(true, bpm->UnpinPage(i, true));
     bpm->FlushPage(i);
@@ -74,9 +72,11 @@ TEST(BufferPoolManagerTest, BinaryDataTest) {
     EXPECT_NE(nullptr, bpm->NewPage(&page_id_temp));
     bpm->UnpinPage(page_id_temp, false);
   }
-  LOG_INFO("FLAG 3");
   // Scenario: We should be able to fetch the data we wrote a while ago.
   page0 = bpm->FetchPage(0);
+  //DEBUG
+
+
   EXPECT_EQ(0, memcmp(page0->GetData(), random_binary_data, PAGE_SIZE));
   EXPECT_EQ(true, bpm->UnpinPage(0, true));
 
@@ -89,7 +89,7 @@ TEST(BufferPoolManagerTest, BinaryDataTest) {
 }
 
 // NOLINTNEXTLINE
-TEST(BufferPoolManagerTest, DISABLED_SampleTest) {
+TEST(BufferPoolManagerTest, SampleTest) {
   const std::string db_name = "test.db";
   const size_t buffer_pool_size = 10;
 
@@ -129,7 +129,6 @@ TEST(BufferPoolManagerTest, DISABLED_SampleTest) {
   // Scenario: We should be able to fetch the data we wrote a while ago.
   page0 = bpm->FetchPage(0);
   EXPECT_EQ(0, strcmp(page0->GetData(), "Hello"));
-
   // Scenario: If we unpin page 0 and then make a new page, all the buffer pages should
   // now be pinned. Fetching page 0 should fail.
   EXPECT_EQ(true, bpm->UnpinPage(0, true));
