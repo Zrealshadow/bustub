@@ -19,7 +19,7 @@ ClockReplacer::ClockReplacer(size_t num_pages) {
     for(size_t i = 0; i < num_pages; i++){
         unit_frame * unit = new unit_frame(i,false, true);
         this->clock_array.push_back(unit);
-        LOG_DEBUG("frame %zu", i);
+        // LOG_DEBUG("frame %zu", i);
     }
     this->clock_hand = 0;
 }
