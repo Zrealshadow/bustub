@@ -14,16 +14,47 @@
 
 namespace bustub {
 
-LRUReplacer::LRUReplacer(size_t num_pages) {}
+LRUReplacer::LRUReplacer(size_t num_pages) {
+    this->num_pages = num_pages;
+}
 
 LRUReplacer::~LRUReplacer() = default;
 
-bool LRUReplacer::Victim(frame_id_t *frame_id) { return false; }
+bool LRUReplacer::Victim(frame_id_t *frame_id) { 
+    if (Size() == 0){
+        return false;
+    }
+    *frame_id = free_ordered_frame.front();
+    free_ordered_frame.pop_front();
+    map_pos.erase((*frame_id));
+    return true;
+}
 
-void LRUReplacer::Pin(frame_id_t frame_id) {}
+void LRUReplacer::Pin(frame_id_t frame_id) {
+    auto got = map_pos.find(frame_id);
+    if (got != map_pos.end()){
+        std::list<frame_id_t>::iterator pos = got->second;
+        free_ordered_frame.erase(pos);
+        map_pos.erase(frame_id);
+    }
+}
 
-void LRUReplacer::Unpin(frame_id_t frame_id) {}
+void LRUReplacer::Unpin(frame_id_t frame_id) {
+    auto got = map_pos.find(frame_id);
+    if (got != map_pos.end()) {
+        //frame exists in free ordered frame 
+        // auto pos = free_ordered_frame.begin();
+        // std::advance(pos, got->second);
+        // free_ordered_frame.erase(pos);
+        return;
+    }
+    std::list<frame_id_t>::iterator pos = free_ordered_frame.insert(free_ordered_frame.end(),frame_id);
+    map_pos.insert({frame_id, pos});
+}
 
-size_t LRUReplacer::Size() { return 0; }
+size_t LRUReplacer::Size() { 
+    return free_ordered_frame.size();    
+}
+
 
 }  // namespace bustub
