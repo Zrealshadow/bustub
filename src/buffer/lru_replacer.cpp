@@ -20,8 +20,9 @@ LRUReplacer::LRUReplacer(size_t num_pages) {
 
 LRUReplacer::~LRUReplacer() = default;
 
-bool LRUReplacer::Victim(frame_id_t *frame_id) { 
-    if (Size() == 0){
+bool LRUReplacer::Victim(frame_id_t *frame_id) {
+    std::lock_guard<std::mutex> lck(latch_);
+    if (free_ordered_frame.size() == 0){
         return false;
     }
     *frame_id = free_ordered_frame.front();
@@ -31,6 +32,7 @@ bool LRUReplacer::Victim(frame_id_t *frame_id) {
 }
 
 void LRUReplacer::Pin(frame_id_t frame_id) {
+    std::lock_guard<std::mutex> lck(latch_);
     auto got = map_pos.find(frame_id);
     if (got != map_pos.end()){
         std::list<frame_id_t>::iterator pos = got->second;
@@ -40,6 +42,7 @@ void LRUReplacer::Pin(frame_id_t frame_id) {
 }
 
 void LRUReplacer::Unpin(frame_id_t frame_id) {
+    std::lock_guard<std::mutex> lck(latch_);
     auto got = map_pos.find(frame_id);
     if (got != map_pos.end()) {
         //frame exists in free ordered frame 
@@ -53,6 +56,7 @@ void LRUReplacer::Unpin(frame_id_t frame_id) {
 }
 
 size_t LRUReplacer::Size() { 
+    std::lock_guard<std::mutex> lck(latch_);
     return free_ordered_frame.size();    
 }
 

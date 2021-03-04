@@ -27,6 +27,7 @@ ClockReplacer::ClockReplacer(size_t num_pages) {
 ClockReplacer::~ClockReplacer() = default;
 
 bool ClockReplacer::Victim(frame_id_t *frame_id) { 
+    std::lock_guard<std::mutex> lck(latch_);
     size_t count = 0;
     size_t index;
     bool pin = true;
@@ -67,17 +68,20 @@ bool ClockReplacer::Victim(frame_id_t *frame_id) {
 }
 
 void ClockReplacer::Pin(frame_id_t frame_id) {
+    std::lock_guard<std::mutex> lck(latch_);
     unit_frame * unit = clock_array.at(frame_id);
     unit->pin = true;
 }
 
 void ClockReplacer::Unpin(frame_id_t frame_id) {
+    std::lock_guard<std::mutex> lck(latch_);
     unit_frame * unit = clock_array.at(frame_id);
     unit->pin = false;
     unit->ref = true;
 }
 
 size_t ClockReplacer::Size() { 
+    std::lock_guard<std::mutex> lck(latch_);
     std::vector<unit_frame *>::iterator iter =  clock_array.begin();
     size_t ans = 0;
     for(; iter != clock_array.end(); iter++){

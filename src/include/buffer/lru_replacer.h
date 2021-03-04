@@ -50,6 +50,7 @@ class LRUReplacer : public Replacer {
     std::unordered_map<frame_id_t, std::list<frame_id_t>::iterator> map_pos;
     std::list<frame_id_t> free_ordered_frame;
     size_t num_pages;
+    std::mutex latch_;
 
 };
 

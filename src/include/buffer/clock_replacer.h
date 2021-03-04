@@ -64,6 +64,7 @@ class ClockReplacer : public Replacer {
   std::vector<unit_frame *> clock_array;
   size_t num_pages;
   size_t clock_hand;
+  std::mutex latch_;
 };
 
 }  // namespace bustub
