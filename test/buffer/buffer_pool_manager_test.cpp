@@ -31,9 +31,9 @@ TEST(BufferPoolManagerTest, BinaryDataTest) {
 
   auto *disk_manager = new DiskManager(db_name);
   auto *bpm = new BufferPoolManager(buffer_pool_size, disk_manager);
-
   page_id_t page_id_temp;
   auto *page0 = bpm->NewPage(&page_id_temp);
+  
   // Scenario: The buffer pool is empty. We should be able to create a new page.
   ASSERT_NE(nullptr, page0);
   EXPECT_EQ(0, page_id_temp);
