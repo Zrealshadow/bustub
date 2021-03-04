@@ -42,6 +42,9 @@ Page *BufferPoolManager::FetchPageImpl(page_id_t page_id) {
   // 2.     If R is dirty, write it back to the disk.
   // 3.     Delete R from the page table and insert P.
   // 4.     Update P's metadata, read in the page content from disk, and then return a pointer to P.
+  
+  //lock the manager
+  std::lock_guard<std::mutex> lck(latch_);
   auto got = page_table_.find(page_id);
   Page * pages = GetPages();
   frame_id_t frame_id;
@@ -87,13 +90,14 @@ Page *BufferPoolManager::FetchPageImpl(page_id_t page_id) {
     return pages + frame_id;
   }
   else{
-    LOG_INFO("Fetch No replcaed Page");
+    // LOG_INFO("Fetch No replcaed Page");
     // no replaced page.
     return nullptr;
   }
 }
 
 bool BufferPoolManager::UnpinPageImpl(page_id_t page_id, bool is_dirty) { 
+  std::lock_guard<std::mutex> lck(latch_);
   auto got = page_table_.find(page_id);
   // LOG_INFO("UNPIN PAGE : %d", page_id);
   if (got == page_table_.end()){
@@ -120,6 +124,7 @@ bool BufferPoolManager::UnpinPageImpl(page_id_t page_id, bool is_dirty) {
 
 bool BufferPoolManager::FlushPageImpl(page_id_t page_id) {
   // Make sure you call DiskManager::WritePage!
+  std::lock_guard<std::mutex> lck(latch_);
   auto got = page_table_.find(page_id);
   if (got == page_table_.end()){
     return true;
@@ -143,6 +148,7 @@ Page *BufferPoolManager::NewPageImpl(page_id_t *page_id) {
   // 2.   Pick a victim page P from either the free list or the replacer. Always pick from the free list first.
   // 3.   Update P's metadata, zero out memory and add P to the page table.
   // 4.   Set the page ID output parameter. Return a pointer to P.
+  std::lock_guard<std::mutex> lck(latch_);
   frame_id_t frame_id;
   Page* pages = GetPages();
   if (!free_list_.empty()){
@@ -184,6 +190,7 @@ bool BufferPoolManager::DeletePageImpl(page_id_t page_id) {
   // 1.   If P does not exist, return true.
   // 2.   If P exists, but has a non-zero pin-count, return false. Someone is using the page.
   // 3.   Otherwise, P can be deleted. Remove P from the page table, reset its metadata and return it to the free list.
+  std::lock_guard<std::mutex> lck(latch_);
   auto got = page_table_.find(page_id);
   if (got == page_table_.end()){
     // page dose not exist in memory
@@ -210,6 +217,7 @@ bool BufferPoolManager::DeletePageImpl(page_id_t page_id) {
 
 void BufferPoolManager::FlushAllPagesImpl() {
   // You can do it!
+  std::lock_guard<std::mutex> lck(latch_);
   auto it = page_table_.begin();
   for(;it != page_table_.end(); it++){
     page_id_t page_id = (*it).first;
